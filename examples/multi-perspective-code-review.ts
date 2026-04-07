@@ -18,7 +18,7 @@
  */
 
 import { OpenMultiAgent } from '../src/index.js'
-import type { AgentConfig, OrchestratorEvent, Task } from '../src/types.js'
+import type { AgentConfig, OrchestratorEvent } from '../src/types.js'
 
 // ---------------------------------------------------------------------------
 // API spec to implement
@@ -97,11 +97,12 @@ Deduplicate overlapping feedback. Keep the report to 200-300 words.`,
 // ---------------------------------------------------------------------------
 
 function handleProgress(event: OrchestratorEvent): void {
-  if (event.type === 'task:start') {
-    console.log(`  [START] ${event.taskTitle} → ${event.agentName}`)
+  if (event.type === 'task_start') {
+    console.log(`  [START] ${event.task ?? '?'} → ${event.agent ?? '?'}`)
   }
-  if (event.type === 'task:complete') {
-    console.log(`  [DONE]  ${event.taskTitle} (${event.success ? 'OK' : 'FAIL'})`)
+  if (event.type === 'task_complete') {
+    const success = (event.data as { success?: boolean })?.success ?? true
+    console.log(`  [DONE]  ${event.task ?? '?'} (${success ? 'OK' : 'FAIL'})`)
   }
 }
 
@@ -120,7 +121,7 @@ const team = orchestrator.createTeam('code-review-team', {
 // Tasks
 // ---------------------------------------------------------------------------
 
-const tasks: Task[] = [
+const tasks = [
   {
     title: 'Generate code',
     description: `Write a Node.js Express route handler for this API spec:\n\n${API_SPEC}\n\nStore the complete code in shared memory as "generated_code".`,

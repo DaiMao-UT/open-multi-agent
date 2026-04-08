@@ -323,7 +323,7 @@ describe('OpenMultiAgent', () => {
       expect(coordinatorPrompt).not.toContain('You are a task coordinator responsible')
     })
 
-    it('applies advanced coordinator options (maxTokens, temperature, tools)', async () => {
+    it('applies advanced coordinator options (maxTokens, temperature, tools, disallowedTools)', async () => {
       mockAdapterResponses = [
         '```json\n[{"title": "Inspect", "description": "Inspect", "assignee": "worker-a"}]\n```',
         'worker output',
@@ -343,7 +343,8 @@ describe('OpenMultiAgent', () => {
           maxTurns: 5,
           maxTokens: 1234,
           temperature: 0,
-          tools: ['file_read'],
+          tools: ['file_read', 'grep'],
+          disallowedTools: ['grep'],
           timeoutMs: 1500,
           loopDetection: { maxRepetitions: 2, loopDetectionWindow: 3 },
         },
@@ -353,6 +354,34 @@ describe('OpenMultiAgent', () => {
       expect(capturedChatOptions[0]?.temperature).toBe(0)
       expect(capturedChatOptions[0]?.tools).toBeDefined()
       expect(capturedChatOptions[0]?.tools?.map((t) => t.name)).toContain('file_read')
+      expect(capturedChatOptions[0]?.tools?.map((t) => t.name)).not.toContain('grep')
+    })
+
+    it('supports coordinator.toolPreset and intersects with tools allowlist', async () => {
+      mockAdapterResponses = [
+        '```json\n[{"title": "Inspect", "description": "Inspect", "assignee": "worker-a"}]\n```',
+        'worker output',
+        'final synthesis',
+      ]
+
+      const oma = new OpenMultiAgent({
+        defaultModel: 'mock-model',
+        defaultProvider: 'openai',
+      })
+      const team = oma.createTeam('t', teamCfg([
+        { ...agentConfig('worker-a'), model: 'worker-model' },
+      ]))
+
+      await oma.runTeam(team, 'First inspect project, then produce output', {
+        coordinator: {
+          toolPreset: 'readonly',
+          tools: ['file_read', 'bash'],
+        },
+      })
+
+      const coordinatorToolNames = capturedChatOptions[0]?.tools?.map((t) => t.name) ?? []
+      expect(coordinatorToolNames).toContain('file_read')
+      expect(coordinatorToolNames).not.toContain('bash')
     })
   })
 

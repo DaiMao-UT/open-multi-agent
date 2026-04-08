@@ -885,7 +885,9 @@ export class OpenMultiAgent {
       maxTurns: coordinatorOverrides?.maxTurns ?? 3,
       maxTokens: coordinatorOverrides?.maxTokens,
       temperature: coordinatorOverrides?.temperature,
+      toolPreset: coordinatorOverrides?.toolPreset,
       tools: coordinatorOverrides?.tools,
+      disallowedTools: coordinatorOverrides?.disallowedTools,
       loopDetection: coordinatorOverrides?.loopDetection,
       timeoutMs: coordinatorOverrides?.timeoutMs,
     }

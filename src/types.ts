@@ -449,8 +449,12 @@ export interface CoordinatorConfig {
   readonly maxTurns?: number
   readonly maxTokens?: number
   readonly temperature?: number
+  /** Predefined tool preset for common coordinator use cases. */
+  readonly toolPreset?: 'readonly' | 'readwrite' | 'full'
   /** Tool names available to the coordinator. */
   readonly tools?: readonly string[]
+  /** Tool names explicitly denied to the coordinator. */
+  readonly disallowedTools?: readonly string[]
   readonly loopDetection?: LoopDetectionConfig
   readonly timeoutMs?: number
 }

@@ -25,7 +25,9 @@ import Anthropic from '@anthropic-ai/sdk'
 import type {
   ContentBlockParam,
   ImageBlockParam,
+  MessageCreateParamsNonStreaming,
   MessageParam,
+  MessageStreamParams,
   TextBlockParam,
   ToolResultBlockParam,
   ToolUseBlockParam,
@@ -224,7 +226,8 @@ export class AnthropicAdapter implements LLMAdapter {
         messages: anthropicMessages,
         system: options.systemPrompt,
         tools: options.tools ? toAnthropicTools(options.tools) : undefined,
-      } as any,
+        // Cast covers arbitrary `extraBody` keys not declared by the SDK.
+      } as MessageCreateParamsNonStreaming,
       {
         signal: options.abortSignal,
       },
@@ -278,7 +281,7 @@ export class AnthropicAdapter implements LLMAdapter {
         messages: anthropicMessages,
         system: options.systemPrompt,
         tools: options.tools ? toAnthropicTools(options.tools) : undefined,
-      } as any,
+      } as MessageStreamParams,
       {
         signal: options.abortSignal,
       },

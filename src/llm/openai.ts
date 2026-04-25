@@ -33,6 +33,8 @@
 import OpenAI from 'openai'
 import type {
   ChatCompletionChunk,
+  ChatCompletionCreateParamsNonStreaming,
+  ChatCompletionCreateParamsStreaming,
 } from 'openai/resources/chat/completions/index.js'
 
 import type {
@@ -108,7 +110,10 @@ export class OpenAIAdapter implements LLMAdapter {
         messages: openAIMessages,
         tools: options.tools ? options.tools.map(toOpenAITool) : undefined,
         stream: false,
-      } as any, // Cast for local OpenAI-compatible servers accepting non-standard params like top_k / min_p
+        // Cast covers `top_k` / `min_p` and arbitrary `extraBody` keys, which
+        // local OpenAI-compatible servers (vLLM, llama-server) accept but the
+        // upstream SDK type does not declare.
+      } as ChatCompletionCreateParamsNonStreaming,
       {
         signal: options.abortSignal,
       },
@@ -154,7 +159,7 @@ export class OpenAIAdapter implements LLMAdapter {
         tools: options.tools ? options.tools.map(toOpenAITool) : undefined,
         stream: true,
         stream_options: { include_usage: true },
-      } as any, // Cast for local OpenAI-compatible servers accepting non-standard params like top_k / min_p
+      } as ChatCompletionCreateParamsStreaming,
       {
         signal: options.abortSignal,
       },
@@ -177,7 +182,7 @@ export class OpenAIAdapter implements LLMAdapter {
     let fullText = ''
 
     try {
-      for await (const chunk of streamResponse as any) {
+      for await (const chunk of streamResponse) {
         completionId = chunk.id
         completionModel = chunk.model
 
@@ -190,7 +195,7 @@ export class OpenAIAdapter implements LLMAdapter {
         const choice: ChatCompletionChunk.Choice | undefined = chunk.choices[0]
         if (choice === undefined) continue
 
-        const delta = choice.delta as any
+        const delta = choice.delta
 
         // --- text delta ---
         if (delta.content !== null && delta.content !== undefined) {

@@ -93,8 +93,9 @@ export class OpenAIAdapter implements LLMAdapter {
 
     const completion = await this.#client.chat.completions.create(
       {
-        model: options.model,
-        messages: openAIMessages,
+        // Sampling params first so extraBody can override them. Structural
+        // fields (model/messages/tools/stream) come after extraBody so users
+        // cannot accidentally clobber them via extraBody.
         max_tokens: options.maxTokens,
         temperature: options.temperature,
         frequency_penalty: options.frequencyPenalty,
@@ -103,6 +104,8 @@ export class OpenAIAdapter implements LLMAdapter {
         top_k: options.topK,
         min_p: options.minP,
         ...options.extraBody,
+        model: options.model,
+        messages: openAIMessages,
         tools: options.tools ? options.tools.map(toOpenAITool) : undefined,
         stream: false,
       } as any, // Cast for local OpenAI-compatible servers accepting non-standard params like top_k / min_p
@@ -137,8 +140,7 @@ export class OpenAIAdapter implements LLMAdapter {
     // We request usage in the final chunk so we can include it in the `done` event.
     const streamResponse = await this.#client.chat.completions.create(
       {
-        model: options.model,
-        messages: openAIMessages,
+        // See chat() above for the rationale behind this field ordering.
         max_tokens: options.maxTokens,
         temperature: options.temperature,
         frequency_penalty: options.frequencyPenalty,
@@ -147,6 +149,8 @@ export class OpenAIAdapter implements LLMAdapter {
         top_k: options.topK,
         min_p: options.minP,
         ...options.extraBody,
+        model: options.model,
+        messages: openAIMessages,
         tools: options.tools ? options.tools.map(toOpenAITool) : undefined,
         stream: true,
         stream_options: { include_usage: true },

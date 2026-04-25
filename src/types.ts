@@ -308,6 +308,13 @@ export interface AgentConfig {
   readonly topP?: number
   readonly topK?: number
   readonly minP?: number
+  /**
+   * Adapter-specific escape hatch merged into the outgoing request payload.
+   * Spread between the sampling params and the structural fields, so values
+   * here can override the standard sampling defaults (`temperature`, `topP`,
+   * etc.) but cannot override transport-level fields (`model`, `messages`,
+   * `tools`, `stream`, and Anthropic's `system`).
+   */
   readonly extraBody?: Record<string, unknown>
   /**
    * Maximum wall-clock time (in milliseconds) for the entire agent run.
@@ -613,6 +620,13 @@ export interface CoordinatorConfig {
   readonly topP?: number
   readonly topK?: number
   readonly minP?: number
+  /**
+   * Adapter-specific escape hatch merged into the outgoing request payload.
+   * Spread between the sampling params and the structural fields, so values
+   * here can override the standard sampling defaults (`temperature`, `topP`,
+   * etc.) but cannot override transport-level fields (`model`, `messages`,
+   * `tools`, `stream`, and Anthropic's `system`).
+   */
   readonly extraBody?: Record<string, unknown>
   /** Predefined tool preset for common coordinator use cases. */
   readonly toolPreset?: 'readonly' | 'readwrite' | 'full'
@@ -724,6 +738,13 @@ export interface LLMChatOptions {
   readonly topP?: number
   readonly topK?: number
   readonly minP?: number
+  /**
+   * Adapter-specific escape hatch merged into the outgoing request payload.
+   * Spread between the sampling params and the structural fields, so values
+   * here can override the standard sampling defaults (`temperature`, `topP`,
+   * etc.) but cannot override transport-level fields (`model`, `messages`,
+   * `tools`, `stream`, and Anthropic's `system`).
+   */
   readonly extraBody?: Record<string, unknown>
   readonly systemPrompt?: string
   readonly abortSignal?: AbortSignal

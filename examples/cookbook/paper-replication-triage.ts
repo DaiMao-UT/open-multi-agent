@@ -442,18 +442,22 @@ function textWindow(text: string, index: number, before = 240, after = 240): str
   return text.slice(Math.max(0, index - before), Math.min(text.length, index + after))
 }
 
+const NON_OFFICIAL_REPOSITORY_PATTERN =
+  /\b(?:(?:un|non)[-\s]?official|third[-\s]?party|community|independent|external|unaffiliated)\s+(?:implementation|code|repo(?:sitory)?|github|release|reproduction|replication|port|fork)\b|\b(?:community|third[-\s]?party|external)\s+(?:reimplementation|re-implementation|reproduction|replication|fork|port)\b|\b(?:reimplementation|re-implementation|unofficial\s+reproduction|community\s+reproduction)\b|\b(?:replication|reproduction)\s+(?:implementation|code|repo(?:sitory)?)\b|\bnot\s+(?:an?\s+|the\s+)?official\s+(?:implementation|code|repo(?:sitory)?|github|release)\b|\bnot\s+(?:affiliated|associated|endorsed)\s+with\b|\bno\s+(?:official\s+)?(?:affiliation|endorsement)\b/gi
+
 function hasNegatedOfficialPrefix(text: string, index: number, matchLength: number): boolean {
-  const local = text.slice(Math.max(0, index - 48), index + matchLength).toLowerCase()
+  const local = text.slice(Math.max(0, index - 96), index + matchLength + 48).toLowerCase()
   return /\b(?:un|non)[-\s]?official\b/.test(local)
     || /\bnot\s+(?:an?\s+|the\s+)?official\b/.test(local)
     || /\bno\s+official\b/.test(local)
     || /\bwithout\s+(?:an?\s+|the\s+)?official\b/.test(local)
+    || /\bnot\s+(?:affiliated|associated|endorsed)\s+with\b/.test(local)
+    || /\bno\s+(?:official\s+)?(?:affiliation|endorsement)\b/.test(local)
+    || /\b(?:community|third[-\s]?party|external|unaffiliated)\s+(?:implementation|code|repo(?:sitory)?|github|release|reproduction|replication|port|fork)\b/.test(local)
 }
 
 function nonOfficialClaimNearTarget(text: string, target: string | undefined): boolean {
-  const nonOfficialPattern =
-    /\b(?:(?:un|non)[-\s]?official|third[-\s]?party|community|independent)\s+(?:implementation|code|repo(?:sitory)?|release|reproduction)\b|\bnot\s+(?:an?\s+|the\s+)?official\s+(?:implementation|code|repo(?:sitory)?|release)\b/gi
-  const matches = [...text.matchAll(nonOfficialPattern)]
+  const matches = [...text.matchAll(NON_OFFICIAL_REPOSITORY_PATTERN)]
   if (matches.length === 0) return false
   if (!target) return true
 
@@ -473,6 +477,7 @@ function officialClaimNearTarget(text: string, target: string | undefined): bool
     const index = match.index ?? 0
     const matchText = match[0] ?? ''
     if (hasNegatedOfficialPrefix(text, index, matchText.length)) return false
+    if (nonOfficialClaimNearTarget(textWindow(text, index, 140, 140), target)) return false
     if (!target) return true
     return textMentionsTarget(textWindow(text, index), target)
   })
@@ -880,12 +885,14 @@ async function fetchGitHubRepoEvidence(
   const nonOfficialForTarget = targetQuery
     ? nonOfficialClaimNearTarget(readmeText, targetQuery)
     : nonOfficialClaimNearTarget(readmeText, undefined)
+  const officialClaimWithoutNonOfficialConflict = officialForTarget && !nonOfficialForTarget
   const repoRelationshipHints = {
     linked_from_paper_metadata: linkedFromPaperMetadata,
     mentions_query_or_title: targetQuery ? textMentionsTarget(repoIdentityText, targetQuery) : false,
-    mentions_official: officialForTarget,
-    official_claim_context_unclear: hasOfficialClaim && !officialForTarget,
+    mentions_official: officialClaimWithoutNonOfficialConflict,
+    official_claim_context_unclear: hasOfficialClaim && !officialClaimWithoutNonOfficialConflict,
     explicit_non_official_claim: nonOfficialForTarget,
+    explicit_non_official_or_community_claim: nonOfficialForTarget,
     mentions_reproduction: /reproduc|replicat|results?|benchmark/i.test(readmeText),
     mentions_datasets: /dataset|data preparation|download data|benchmark data/i.test(readmeText),
   }
@@ -1322,6 +1329,7 @@ function summarizeRelationshipHints(value: unknown): string[] {
     mentions_official: 'official claim tied to target',
     official_claim_context_unclear: 'official claim not tied to target',
     explicit_non_official_claim: 'explicit non-official claim',
+    explicit_non_official_or_community_claim: 'explicit non-official/community claim',
     mentions_reproduction: 'mentions reproduction',
     mentions_datasets: 'mentions datasets',
   }
@@ -1345,9 +1353,9 @@ function scoreRepositoryForReplication(repo: Record<string, unknown>): number {
   if (repo['source_query'] === 'github-url-from-paper-metadata') score += 120
   if (hints['linked_from_paper_metadata'] === true) score += 60
   if (hints['mentions_query_or_title'] === true) score += 80
-  if (hints['mentions_official'] === true) score += 55
+  if (hints['mentions_official'] === true && hints['explicit_non_official_claim'] !== true) score += 55
   if (hints['official_claim_context_unclear'] === true) score -= 12
-  if (hints['explicit_non_official_claim'] === true) score -= 35
+  if (hints['explicit_non_official_claim'] === true) score -= 45
   if (hints['mentions_reproduction'] === true) score += 20
   if (hints['mentions_datasets'] === true) score += 15
 
@@ -1425,12 +1433,17 @@ function repoIsTargetTied(repo: Record<string, unknown>): boolean {
 }
 
 function repoHasUnofficialImplementationSignal(repo: Record<string, unknown>): boolean {
-  if (repoHasHint(repo, 'explicit_non_official_claim')) return true
+  if (repoHasHint(repo, 'explicit_non_official_claim') || repoHasHint(repo, 'explicit_non_official_or_community_claim')) return true
 
   const text = repoText(repo)
-  return /\b(?:(?:un|non)[-\s]?official|third[-\s]?party|community|independent)\s+(?:implementation|code|repo(?:sitory)?|release|reproduction)\b/i.test(text)
-    || /\b(?:reimplementation|re-implementation)\b/i.test(text)
-    || /\b(?:replication|reproduction)\s+(?:implementation|code|repo(?:sitory)?)\b/i.test(text)
+  return nonOfficialClaimNearTarget(text, undefined)
+}
+
+function repoIsOfficialCandidate(repo: Record<string, unknown>): boolean {
+  if (repo['source_query'] === 'github-url-from-paper-metadata' || repoHasHint(repo, 'linked_from_paper_metadata')) {
+    return true
+  }
+  return repoHasHint(repo, 'mentions_official') && !repoHasUnofficialImplementationSignal(repo)
 }
 
 function statusItem(
@@ -1465,11 +1478,7 @@ function buildLiveDiscoveryStatus(input: {
   const snippetsArePaperScoped = snippetScope === 'paper_scoped'
   const scholarlyMetadataFound =
     hasSuccessfulSourcePayload(asta.targetPaperMetadata) && findFirstStringByKey(asta.targetPaperMetadata, 'title') !== undefined
-  const officialRepos = repoEvidence.filter((repo) =>
-    repo['source_query'] === 'github-url-from-paper-metadata'
-    || repoHasHint(repo, 'linked_from_paper_metadata')
-    || repoHasHint(repo, 'mentions_official'),
-  )
+  const officialRepos = repoEvidence.filter(repoIsOfficialCandidate)
   const targetTiedRepos = repoEvidence.filter(repoIsTargetTied)
   const usableOfficialRepos = officialRepos.filter(repoHasUsableSnapshot)
   const unofficialRepos = repoEvidence.filter((repo) =>
@@ -2408,6 +2417,7 @@ const codeArtifactAgent: AgentConfig = {
 Audit only code-discovery evidence. Focus on official repository status, missing files, training entrypoints, metric scripts, and GPU recipe clues.
 Do not treat GitHub search success as code availability by itself. Inspect README excerpts, repo relationship hints, relevant paths, linked-from-paper metadata, and issue evidence.
 Only mark a repository as likely_official when it is linked from paper metadata or the official-code claim is tied to the target paper; an "official implementation" claim for another method is not enough.
+If relationship hints include explicit non-official/community wording, classify the repository as third_party or related_benchmark unless it is directly linked from paper metadata.
 Classify each candidate repository as likely_official, third_party, related_benchmark, unrelated, or unclear, and explain the evidence.
 For candidate_repositories, include repository URL, useful training/data/metric paths, and issue signals with URLs when available.
 The source field must be exactly "code_artifacts".
